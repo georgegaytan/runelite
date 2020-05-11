@@ -35,6 +35,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.time.LocalDate;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
@@ -45,13 +46,11 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.InventoryID;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.SpriteID;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
-import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.PlayerDeath;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.widgets.Widget;
@@ -92,14 +91,14 @@ import net.runelite.client.util.LinkBrowser;
 @Slf4j
 public class ScreenshotPlugin extends Plugin
 {
+	private static final String CHEST_LOOTED_MESSAGE = "You find some treasure in the chest!";
+	private static final Map<Integer, String> CHEST_LOOT_EVENTS = ImmutableMap.of(12127, "The Gauntlet");
 	private static final Pattern NUMBER_PATTERN = Pattern.compile("([0-9]+)");
 	private static final Pattern LEVEL_UP_PATTERN = Pattern.compile(".*Your ([a-zA-Z]+) (?:level is|are)? now (\\d+)\\.");
 	private static final Pattern BOSSKILL_MESSAGE_PATTERN = Pattern.compile("Your (.+) kill count is: <col=ff0000>(\\d+)</col>.");
 	private static final Pattern VALUABLE_DROP_PATTERN = Pattern.compile(".*Valuable drop: ([^<>]+)(?:</col>)?");
 	private static final Pattern UNTRADEABLE_DROP_PATTERN = Pattern.compile(".*Untradeable drop: ([^<>]+)(?:</col>)?");
 	private static final Pattern DUEL_END_PATTERN = Pattern.compile("You have now (won|lost) ([0-9]+) duels?\\.");
-	private static final String GAUNTLET_LOOTED_MESSAGE = "You open the chest.";
-	private static final int GAUNTLET_LOBBY_REGION = 12127;
 	private static final ImmutableList<String> PET_MESSAGES = ImmutableList.of("You have a funny feeling like you're being followed",
 		"You feel something weird sneaking into your backpack",
 		"You have a funny feeling like you would have been followed");
@@ -114,8 +113,6 @@ public class ScreenshotPlugin extends Plugin
 	private Integer chambersOfXericChallengeNumber;
 
 	private Integer theatreOfBloodNumber;
-
-	private boolean shouldTakeGauntletScreenshot;
 
 	private boolean shouldTakeScreenshot;
 
@@ -273,21 +270,6 @@ public class ScreenshotPlugin extends Plugin
 		}
 	}
 
-
-	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event)
-	{
-		// Gauntlet has no interface for the loot, so we just take a screenshot after the
-		// loot has been added to the inventory.
-		if (!shouldTakeGauntletScreenshot || event.getContainerId() != InventoryID.INVENTORY.getId())
-		{
-			return;
-		}
-
-		shouldTakeGauntletScreenshot = false;
-		takeScreenshot("Gauntlet Loot", "Gauntlet");
-	}
-
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
@@ -367,15 +349,15 @@ public class ScreenshotPlugin extends Plugin
 			}
 		}
 
-		if (config.screenshotRewards() && chatMessage.equals(GAUNTLET_LOOTED_MESSAGE))
+		if (config.screenshotRewards() && chatMessage.equals(CHEST_LOOTED_MESSAGE))
 		{
 			final int regionID = client.getLocalPlayer().getWorldLocation().getRegionID();
-			if (GAUNTLET_LOBBY_REGION != regionID)
+			if (!CHEST_LOOT_EVENTS.containsKey(regionID))
 			{
 				return;
 			}
 
-			shouldTakeGauntletScreenshot = true;
+			takeScreenshot(CHEST_LOOT_EVENTS.get(regionID), CHEST_LOOT_EVENTS.get(regionID));
 		}
 
 		if (config.screenshotValuableDrop())
